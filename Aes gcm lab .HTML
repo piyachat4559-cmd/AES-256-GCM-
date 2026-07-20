@@ -1,0 +1,527 @@
+DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AES-256-GCM Cipher Lab</title>
+ 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+ 
+<link rel="stylesheet" href="https://pyscript.net/releases/2024.11.1/core.css">
+<script type="module" src="https://pyscript.net/releases/2024.11.1/core.js"></script>
+ 
+<py-config>
+packages = ["pycryptodome"]
+</py-config>
+ 
+<style>
+  :root{
+    --ink:#080c10;
+    --panel:#0f161c;
+    --panel-raised:#131c23;
+    --border:#1e2b33;
+    --phosphor:#ffb000;
+    --phosphor-dim:#7a5800;
+    --phosphor-glow:rgba(255,176,0,0.35);
+    --cyan:#4fd6c4;
+    --cyan-dim:#1f4d47;
+    --danger:#ff5d5d;
+    --text:#dbe4e4;
+    --text-dim:#7c8e8e;
+    --mono-data:"IBM Plex Mono", monospace;
+    --mono-display:"JetBrains Mono", monospace;
+    --sans:"IBM Plex Sans", sans-serif;
+  }
+ 
+  *{box-sizing:border-box;}
+ 
+  body{
+    margin:0;
+    background:
+      radial-gradient(circle at 15% -10%, rgba(255,176,0,0.05), transparent 40%),
+      radial-gradient(circle at 100% 0%, rgba(79,214,196,0.04), transparent 45%),
+      var(--ink);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    padding:32px 20px 80px;
+  }
+ 
+  .scanlines{
+    position:fixed; inset:0; pointer-events:none; z-index:50;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px,
+      transparent 1px, transparent 3px
+    );
+    opacity:0.6;
+  }
+ 
+  .wrap{ max-width:920px; margin:0 auto; }
+ 
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom:1px solid var(--border);
+    padding-bottom:18px; margin-bottom:28px; gap:16px; flex-wrap:wrap;
+  }
+ 
+  .eyebrow{
+    font-family:var(--mono-display);
+    font-size:11px; letter-spacing:0.18em; color:var(--phosphor);
+    text-transform:uppercase; margin:0 0 6px;
+  }
+ 
+  h1{
+    font-family:var(--mono-display);
+    font-size:26px; font-weight:700; margin:0; letter-spacing:-0.01em;
+    color:#f2f4f0;
+  }
+ 
+  .sub{ color:var(--text-dim); font-size:13.5px; max-width:46ch; line-height:1.5; margin-top:8px;}
+ 
+  #status{
+    font-family:var(--mono-data); font-size:12px;
+    border:1px solid var(--border); border-radius:3px;
+    padding:7px 12px; white-space:nowrap;
+    background:var(--panel);
+  }
+  .status-idle{ color:var(--text-dim); }
+  .status-success{ color:var(--cyan); border-color:var(--cyan-dim); }
+  .status-error{ color:var(--danger); border-color:#4a1f1f; }
+ 
+  section.panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:22px 22px 24px;
+    margin-bottom:20px;
+    position:relative;
+  }
+ 
+  .panel-label{
+    font-family:var(--mono-display); font-size:11px; letter-spacing:0.14em;
+    color:var(--text-dim); text-transform:uppercase; margin:0 0 16px;
+    display:flex; align-items:center; gap:8px;
+  }
+  .panel-label::before{
+    content:""; width:6px; height:6px; background:var(--phosphor);
+    border-radius:1px; box-shadow:0 0 6px var(--phosphor-glow);
+  }
+ 
+  .field{ margin-bottom:14px; }
+  .field:last-child{ margin-bottom:0; }
+ 
+  .field-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:6px;
+  }
+ 
+  label{
+    font-family:var(--mono-data); font-size:11.5px; color:var(--text-dim);
+    letter-spacing:0.04em;
+  }
+ 
+  .bits{ color:var(--phosphor-dim); font-size:10.5px; }
+ 
+  .hexbox, textarea, input[type=text]{
+    width:100%;
+    background:var(--panel-raised);
+    border:1px solid var(--border);
+    color:var(--phosphor);
+    font-family:var(--mono-data);
+    font-size:13px;
+    border-radius:3px;
+    padding:10px 12px;
+    resize:vertical;
+    outline:none;
+    transition:border-color 0.15s;
+  }
+  .hexbox:focus, textarea:focus, input[type=text]:focus{
+    border-color:var(--phosphor-dim);
+  }
+  textarea#plaintext-input{ color:var(--text); min-height:70px; }
+  input#aad-input{ color:var(--text); }
+ 
+  .row{ display:flex; gap:10px; align-items:stretch; }
+  .row .hexbox{ flex:1; }
+ 
+  button{
+    font-family:var(--mono-display); font-size:11.5px; letter-spacing:0.06em;
+    text-transform:uppercase; cursor:pointer;
+    background:transparent; border:1px solid var(--border);
+    color:var(--text); border-radius:3px; padding:0 14px;
+    white-space:nowrap;
+    transition:all 0.15s;
+  }
+  button:hover{ border-color:var(--phosphor-dim); color:var(--phosphor); }
+  button:active{ transform:translateY(1px); }
+ 
+  button.ghost{ min-width:64px; }
+ 
+  button.primary{
+    background:var(--phosphor); color:#1a1200; border-color:var(--phosphor);
+    font-weight:700; padding:12px 20px; width:100%; margin-top:16px;
+    font-size:12.5px;
+  }
+  button.primary:hover{ background:#ffc233; color:#1a1200; }
+ 
+  button.secondary{
+    background:transparent; color:var(--cyan); border-color:var(--cyan-dim);
+    padding:12px 20px; width:100%; margin-top:16px; font-size:12.5px;
+  }
+  button.secondary:hover{ background:rgba(79,214,196,0.08); }
+ 
+  /* pipeline schematic */
+  .pipeline-wrap{ overflow-x:auto; }
+  svg#pipeline{ display:block; min-width:640px; width:100%; height:auto; }
+ 
+  .node rect{
+    fill:var(--panel-raised); stroke:var(--border); stroke-width:1;
+    transition:stroke 0.2s, filter 0.2s;
+  }
+  .node text{
+    fill:var(--text-dim); font-family:var(--mono-data); font-size:10.5px;
+  }
+  .node .node-title{ fill:var(--text); font-family:var(--mono-display); font-size:11px; }
+ 
+  .edge{ stroke:var(--border); stroke-width:1.4; fill:none; }
+  .edge-tag{ stroke:var(--cyan-dim); }
+ 
+  #pipeline.active .node rect{ animation:none; }
+  #pipeline.active .node.n1 rect{ animation:glow 0.5s ease-out 0.05s both; }
+  #pipeline.active .node.n2 rect{ animation:glow 0.5s ease-out 0.35s both; }
+  #pipeline.active .node.n3 rect{ animation:glow 0.5s ease-out 0.65s both; }
+  #pipeline.active .node.n4 rect{ animation:glow 0.5s ease-out 0.95s both; }
+  #pipeline.active .node.n5 rect{ animation:glowCyan 0.5s ease-out 0.65s both; }
+  #pipeline.active .node.n6 rect{ animation:glowCyan 0.5s ease-out 0.95s both; }
+ 
+  @keyframes glow{
+    0%{ stroke:var(--border); filter:none; }
+    40%{ stroke:var(--phosphor); filter:drop-shadow(0 0 6px var(--phosphor-glow)); }
+    100%{ stroke:var(--phosphor-dim); filter:none; }
+  }
+  @keyframes glowCyan{
+    0%{ stroke:var(--border); filter:none; }
+    40%{ stroke:var(--cyan); filter:drop-shadow(0 0 6px rgba(79,214,196,0.35)); }
+    100%{ stroke:var(--cyan-dim); filter:none; }
+  }
+ 
+  .output-block{
+    background:var(--panel-raised); border:1px dashed var(--border);
+    border-radius:3px; padding:14px; font-family:var(--mono-data);
+    font-size:13px; color:var(--text); min-height:24px; word-break:break-all;
+    white-space:pre-wrap;
+  }
+  .output-block.empty::before{
+    content:"—"; color:var(--text-dim);
+  }
+ 
+  .verify-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--mono-display); font-size:11px; letter-spacing:0.06em;
+    margin-top:10px; text-transform:uppercase;
+  }
+ 
+  footer{
+    text-align:center; color:var(--text-dim); font-size:11px;
+    font-family:var(--mono-data); margin-top:36px; letter-spacing:0.03em;
+  }
+ 
+  @media (max-width:640px){
+    header{ flex-direction:column; align-items:flex-start; }
+    .row{ flex-wrap:wrap; }
+  }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="wrap">
+ 
+  <header>
+    <div>
+      <p class="eyebrow">Authenticated Encryption &mdash; Educational Tool</p>
+      <h1>AES-256-GCM Cipher Lab</h1>
+      <p class="sub">เข้ารหัสและถอดรหัสข้อความด้วย AES-256 ในโหมด GCM ทั้งหมดทำงานในเบราว์เซอร์ผ่าน PyScript / pycryptodome ไม่มีข้อมูลถูกส่งออกไปที่ใด</p>
+    </div>
+    <div id="status" class="status status-idle">initializing runtime&hellip;</div>
+  </header>
+ 
+  <!-- INPUT: KEY + NONCE -->
+  <section class="panel">
+    <p class="panel-label">Key &amp; Nonce</p>
+ 
+    <div class="field">
+      <div class="field-row">
+        <label>KEY <span class="bits">(256-bit / 32 bytes, hex)</span></label>
+      </div>
+      <div class="row">
+        <input class="hexbox" type="text" id="key-hex" spellcheck="false" autocomplete="off">
+        <button class="ghost" id="btn-gen-key">Generate</button>
+      </div>
+    </div>
+ 
+    <div class="field">
+      <div class="field-row">
+        <label>NONCE / IV <span class="bits">(96-bit / 12 bytes, hex)</span></label>
+      </div>
+      <div class="row">
+        <input class="hexbox" type="text" id="nonce-hex" spellcheck="false" autocomplete="off">
+        <button class="ghost" id="btn-gen-nonce">Generate</button>
+      </div>
+    </div>
+  </section>
+ 
+  <!-- INPUT: PLAINTEXT + AAD -->
+  <section class="panel">
+    <p class="panel-label">Plaintext Input</p>
+ 
+    <div class="field">
+      <label>PLAINTEXT <span class="bits">(UTF-8 text)</span></label>
+      <textarea id="plaintext-input" rows="3" spellcheck="false"></textarea>
+    </div>
+ 
+    <div class="field">
+      <label>ADDITIONAL AUTHENTICATED DATA <span class="bits">(optional, not encrypted, integrity-checked)</span></label>
+      <input type="text" id="aad-input" spellcheck="false" autocomplete="off" placeholder="เว้นว่างได้">
+    </div>
+ 
+    <button class="primary" id="btn-encrypt">Encrypt &rarr;</button>
+  </section>
+ 
+  <!-- SCHEMATIC -->
+  <section class="panel">
+    <p class="panel-label">GCM Schematic</p>
+    <div class="pipeline-wrap">
+      <svg id="pipeline" viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg">
+        <!-- edges -->
+        <path class="edge" d="M70,40 L70,90 L145,90"/>
+        <path class="edge" d="M70,140 L70,90"/>
+        <path class="edge" d="M195,90 L260,90"/>
+        <path class="edge" d="M70,180 L310,180 L310,115"/>
+        <path class="edge" d="M360,90 L430,90"/>
+        <path class="edge edge-tag" d="M70,180 L500,180 L500,115"/>
+        <path class="edge edge-tag" d="M480,90 L480,55 L500,55 L500,65"/>
+        <path class="edge edge-tag" d="M360,115 L360,140 L470,140 L470,90"/>
+ 
+        <!-- KEY -->
+        <g class="node n1">
+          <rect x="20" y="20" width="100" height="34" rx="3"/>
+          <text x="70" y="41" text-anchor="middle" class="node-title">KEY</text>
+        </g>
+        <!-- NONCE -->
+        <g class="node n1">
+          <rect x="20" y="120" width="100" height="34" rx="3"/>
+          <text x="70" y="141" text-anchor="middle" class="node-title">NONCE</text>
+        </g>
+        <!-- CTR keystream -->
+        <g class="node n2">
+          <rect x="145" y="70" width="90" height="40" rx="3"/>
+          <text x="190" y="87" text-anchor="middle" class="node-title">AES-CTR</text>
+          <text x="190" y="100" text-anchor="middle">keystream</text>
+        </g>
+        <!-- XOR -->
+        <g class="node n3">
+          <rect x="260" y="65" width="60" height="50" rx="3"/>
+          <text x="290" y="88" text-anchor="middle" class="node-title">XOR</text>
+          <text x="290" y="102" text-anchor="middle">&oplus; PT</text>
+        </g>
+        <!-- CIPHERTEXT -->
+        <g class="node n4">
+          <rect x="430" y="70" width="110" height="40" rx="3"/>
+          <text x="485" y="87" text-anchor="middle" class="node-title">CIPHERTEXT</text>
+          <text x="485" y="100" text-anchor="middle">output</text>
+        </g>
+        <!-- GHASH -->
+        <g class="node n5">
+          <rect x="360" y="120" width="90" height="40" rx="3"/>
+          <text x="405" y="137" text-anchor="middle" class="node-title">GHASH</text>
+          <text x="405" y="150" text-anchor="middle">+ AAD</text>
+        </g>
+        <!-- TAG -->
+        <g class="node n6">
+          <rect x="470" y="20" width="100" height="34" rx="3"/>
+          <text x="520" y="41" text-anchor="middle" class="node-title">AUTH TAG</text>
+        </g>
+ 
+        <text x="20" y="200" font-family="IBM Plex Mono" font-size="9.5" fill="#4a5a5a">plaintext feeds XOR &middot; ciphertext + AAD feed GHASH &middot; GHASH output feeds tag</text>
+      </svg>
+    </div>
+  </section>
+ 
+  <!-- OUTPUT: CIPHERTEXT + TAG -->
+  <section class="panel">
+    <p class="panel-label">Encryption Output</p>
+ 
+    <div class="field">
+      <label>CIPHERTEXT <span class="bits">(hex)</span></label>
+      <div class="output-block empty" id="ciphertext-hex-display"></div>
+      <input type="text" id="ciphertext-hex" style="display:none;">
+    </div>
+ 
+    <div class="field">
+      <label>AUTHENTICATION TAG <span class="bits">(128-bit, hex)</span></label>
+      <div class="output-block empty" id="tag-hex-display"></div>
+      <input type="text" id="tag-hex" style="display:none;">
+    </div>
+ 
+    <button class="secondary" id="btn-decrypt">Decrypt &amp; Verify &rarr;</button>
+  </section>
+ 
+  <!-- OUTPUT: DECRYPTED -->
+  <section class="panel">
+    <p class="panel-label">Decryption Output</p>
+    <div class="field">
+      <label>RECOVERED PLAINTEXT</label>
+      <div class="output-block empty" id="decrypted-output"></div>
+    </div>
+    <div id="verify-badge"></div>
+  </section>
+ 
+  <footer>ทำงานทั้งหมดในเบราว์เซอร์ผ่าน Pyodide (WebAssembly) &mdash; ไม่มีข้อมูลถูกส่งออกจากหน้านี้</footer>
+</div>
+ 
+<script type="py">
+from pyscript import document, when
+from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
+import binascii
+ 
+def set_status(msg, kind="idle"):
+    el = document.getElementById("status")
+    el.textContent = msg
+    el.className = "status status-" + kind
+ 
+def hex_of(b):
+    return binascii.hexlify(b).decode()
+ 
+def bytes_of_hex(h):
+    h = "".join(h.strip().split())
+    return binascii.unhexlify(h)
+ 
+def show_output(field_id, text):
+    display_el = document.getElementById(field_id + "-display")
+    hidden_el = document.getElementById(field_id)
+    hidden_el.value = text
+    display_el.textContent = text
+    if text:
+        display_el.classList.remove("empty")
+    else:
+        display_el.classList.add("empty")
+ 
+def get_output(field_id):
+    return document.getElementById(field_id).value
+ 
+def retrigger_pipeline():
+    pipeline = document.getElementById("pipeline")
+    pipeline.classList.remove("active")
+    _ = pipeline.offsetWidth
+    pipeline.classList.add("active")
+ 
+def clear_verify_badge():
+    document.getElementById("verify-badge").innerHTML = ""
+ 
+def set_verify_badge(ok):
+    badge = document.getElementById("verify-badge")
+    if ok:
+        badge.innerHTML = '<span class="verify-badge" style="color:var(--cyan)">&#10003; tag verified &mdash; data intact</span>'
+    else:
+        badge.innerHTML = '<span class="verify-badge" style="color:var(--danger)">&#10007; tag verification failed</span>'
+ 
+@when("click", "#btn-gen-key")
+def gen_key(event=None):
+    document.getElementById("key-hex").value = hex_of(get_random_bytes(32))
+ 
+@when("click", "#btn-gen-nonce")
+def gen_nonce(event=None):
+    document.getElementById("nonce-hex").value = hex_of(get_random_bytes(12))
+ 
+@when("click", "#btn-encrypt")
+def do_encrypt(event=None):
+    clear_verify_badge()
+    try:
+        key = bytes_of_hex(document.getElementById("key-hex").value)
+        nonce = bytes_of_hex(document.getElementById("nonce-hex").value)
+    except Exception:
+        set_status("key/nonce ไม่ใช่ hex ที่ถูกต้อง", "error")
+        return
+ 
+    if len(key) != 32:
+        set_status("KEY ต้องมีความยาว 256 บิต (64 hex characters)", "error")
+        return
+    if len(nonce) < 1:
+        set_status("NONCE ต้องไม่ว่างเปล่า", "error")
+        return
+ 
+    aad = document.getElementById("aad-input").value
+    plaintext = document.getElementById("plaintext-input").value
+ 
+    try:
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        if aad:
+            cipher.update(aad.encode("utf-8"))
+        ciphertext, tag = cipher.encrypt_and_digest(plaintext.encode("utf-8"))
+    except Exception as e:
+        set_status("เข้ารหัสไม่สำเร็จ: " + str(e), "error")
+        return
+ 
+    show_output("ciphertext-hex", hex_of(ciphertext))
+    show_output("tag-hex", hex_of(tag))
+    decrypted_el = document.getElementById("decrypted-output")
+    decrypted_el.textContent = ""
+    decrypted_el.classList.add("empty")
+ 
+    retrigger_pipeline()
+    set_status("เข้ารหัสสำเร็จ — " + str(len(ciphertext)) + " bytes", "success")
+ 
+@when("click", "#btn-decrypt")
+def do_decrypt(event=None):
+    clear_verify_badge()
+    try:
+        key = bytes_of_hex(document.getElementById("key-hex").value)
+        nonce = bytes_of_hex(document.getElementById("nonce-hex").value)
+        ciphertext = bytes_of_hex(get_output("ciphertext-hex"))
+        tag = bytes_of_hex(get_output("tag-hex"))
+    except Exception:
+        set_status("รูปแบบ hex ของ key/nonce/ciphertext/tag ไม่ถูกต้อง", "error")
+        return
+ 
+    if len(key) != 32:
+        set_status("KEY ต้องมีความยาว 256 บิต (64 hex characters)", "error")
+        return
+    if not ciphertext or not tag:
+        set_status("ยังไม่มี ciphertext หรือ tag ให้ถอดรหัส", "error")
+        return
+ 
+    aad = document.getElementById("aad-input").value
+    out_el = document.getElementById("decrypted-output")
+ 
+    try:
+        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+        if aad:
+            cipher.update(aad.encode("utf-8"))
+        plaintext = cipher.decrypt_and_verify(ciphertext, tag)
+        out_el.textContent = plaintext.decode("utf-8", errors="replace")
+        out_el.classList.remove("empty")
+        set_verify_badge(True)
+        set_status("ถอดรหัสสำเร็จ — tag ตรงกัน", "success")
+    except ValueError:
+        out_el.textContent = ""
+        out_el.classList.add("empty")
+        set_verify_badge(False)
+        set_status("ยืนยันตัวตนล้มเหลว: tag ไม่ตรง หรือ ciphertext/key/nonce ถูกแก้ไข", "error")
+    except Exception as e:
+        out_el.textContent = ""
+        out_el.classList.add("empty")
+        set_status("ถอดรหัสไม่สำเร็จ: " + str(e), "error")
+ 
+# initial state
+gen_key()
+gen_nonce()
+document.getElementById("plaintext-input").value = "สวัสดี AES-GCM"
+set_status("พร้อมใช้งาน — กด Encrypt เพื่อเริ่ม", "idle")
+</script>
+ 
+</body>
+</html>
+ 
